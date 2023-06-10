@@ -23,7 +23,7 @@ interface IERC20 {
     function approve(address spender, uint256 amount) external returns (bool);
 }
 
-interface SpookySwap {
+interface DEX {
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -49,7 +49,7 @@ contract EasyDCA is Ownable {
     uint256[] public dcaHeap; // Heap which tracks the next DCA to be executed
 
     mapping(address => uint256[]) public userDCAs; // User list which tracks all DCAs for a user
-    mapping(address => uint256) public userDCACount;
+    mapping(address => uint256) public userDCACount; // Number of DCAs created by a user
 
     // Allowed coins
     address[] public allowedStableCoins;
@@ -74,6 +74,7 @@ contract EasyDCA is Ownable {
 
     // Constructor
     constructor() {
+        // Set default values
         // Stables
         allowedStableCoins.push(0x04068DA6C83AFCFA0e13ba15A6696662335D5B75); // USDC
         allowedStableCoins.push(0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E); // DAI
@@ -86,13 +87,30 @@ contract EasyDCA is Ownable {
         allowedTargetCoins.push(0x511D35c52a3C244E7b8bd92c0C297755FbD89212); // AVAX
         allowedTargetCoins.push(0x85dec8c4B2680793661bCA91a8F129607571863d); // BRUSH
         allowedTargetCoins.push(0x321162Cd933E2Be498Cd2267a90534A804051b11); // wBTC
+
         // Default Fee Collector
         feeCollector = msg.sender; // Default fee collector is the contract creator
+
         // Default Dex, SpookySwap
         dex = 0x31F63A33141fFee63D4B26755430a390ACdD8a4d;
+
+        // Heap initialization
+        dcaHeap.push(0); // First element is 0, so we can start from index 1
+        dcaList.push(
+            DCA(
+                address(0),
+                address(0),
+                address(0),
+                0,
+                0,
+                0,
+                0,
+                false
+            )
+        ); // First element is empty, so we can start from index 1
     }
 
-    // User Methods
+    // USER METHODS
     function addDCA(
         address _stable,
         address _target,
@@ -121,8 +139,8 @@ contract EasyDCA is Ownable {
             )
         );
         // Add DCA to user
-        userDCAs[msg.sender].push(dcaList.length - 1);
         userDCACount[msg.sender]++;
+        userDCAs[msg.sender].push(dcaList.length - 1);
 
         // Perform first buy wihch will add DCA to heap
         executeDCA(dcaList.length - 1);
@@ -137,7 +155,7 @@ contract EasyDCA is Ownable {
         dcaList[_dcaIndex].isActive = false;
     }
 
-    // Heap methods
+    // HEAP METHODS
     function insertToHeap(uint256 _dcaIndex) internal {
         // Add the value to the end of our array
         dcaHeap.push(_dcaIndex);
@@ -145,72 +163,63 @@ contract EasyDCA is Ownable {
         uint256 currentIndex = dcaHeap.length - 1;
         // Bubble up the value until it reaches it's correct place (i.e. it is smaller than it's parent)
         while (
-            currentIndex > 0 &&
-            dcaList[dcaHeap[currentIndex / 2]].treshold >
-            dcaList[dcaHeap[currentIndex]].treshold
+            currentIndex > 1
+            && dcaList[dcaHeap[currentIndex / 2]].treshold > dcaList[dcaHeap[currentIndex]].treshold // = parent value is greater than our current value
+            && dcaList[dcaHeap[currentIndex / 2]].isActive // = parent is active
         ) {
             // If the parent value is greater than our current value, we swap them
             (dcaHeap[currentIndex / 2], dcaHeap[currentIndex]) = (dcaHeap[currentIndex], dcaHeap[currentIndex / 2]);
 
-            // change our current Index to go up to the parent
+            // change our current index to go up to the parent
             currentIndex /= 2;
         }
     }
 
     function removeMinFromHeap() internal returns (uint256) {
         // Ensure the heap exists
-        require(dcaHeap.length > 0);
+        require(dcaHeap.length > 1, "Heap is empty"); // Heap index starts from '
         // take the root value of the heap
-        uint256 toReturn = dcaHeap[0];
+        uint256 toReturn = dcaHeap[1];
 
         // Takes the last element of the array and puts it at the root
-        dcaHeap[0] = dcaHeap[dcaHeap.length - 1];
-        // Delete the last element from the array
-        delete dcaHeap[dcaHeap.length - 1];
+        dcaHeap[1] = dcaHeap[dcaHeap.length - 1];
+        // Pop/remove the last element from the array
+        dcaHeap.pop();
 
         // Start at the top
-        uint256 currentIndex = 0;
+        uint256 currentIndex = 1;
 
         // Bubble down
-        while ((dcaHeap.length > 2) && (currentIndex * 2 < dcaHeap.length - 1)) {
-            uint256 j = currentIndex * 2;
-            // get the current index of the children
-            if (currentIndex == 0) {
-                j = 1;
-            }
+        while ((currentIndex * 2) < (dcaHeap.length - 1)) {
+            uint256 childIndex = currentIndex * 2;
 
             // left child value
-            uint256 leftChild = dcaHeap[j];
+            uint256 leftChild = dcaHeap[childIndex];
             // right child value
-            uint256 rightChild = dcaHeap[j + 1];
+            uint256 rightChild = dcaHeap[childIndex + 1];
 
-            // Compare the left and right child. if the rightChild is lower, then point j to it's index
+            // Compare the left and right child. if the rightChild is lower, then point child index to it's index
             if (dcaList[leftChild].treshold > dcaList[rightChild].treshold) {
-                j += 1;
+                childIndex++;
             }
 
             // compare the current parent value with the lowest child, if the parent is lower, we're done
-            if (
-                dcaList[dcaHeap[currentIndex]].treshold <
-                dcaList[dcaHeap[j]].treshold
-            ) {
+            if (dcaList[dcaHeap[currentIndex]].treshold < dcaList[dcaHeap[childIndex]].treshold) 
+            {
                 break;
             }
 
             // else swap the value
-            (dcaHeap[currentIndex], dcaHeap[j]) = (
-                dcaHeap[j],
-                dcaHeap[currentIndex]
-            );
+            (dcaHeap[currentIndex], dcaHeap[childIndex]) = (dcaHeap[childIndex], dcaHeap[currentIndex]);
 
-            // and let's keep going down the heap
-            currentIndex = j;
+            // go downt the heap
+            currentIndex = childIndex;
         }
         // finally, return the top of the heap
         return toReturn;
     }
 
-    // Chainlink Methods
+    // MAIN LOGIC METHODS
     function buyTokens(
         address _buyer,
         uint256 _amount,
@@ -223,7 +232,7 @@ contract EasyDCA is Ownable {
 
         IERC20(_from).approve(dex, _amount);
         return
-            SpookySwap(dex).swapExactTokensForTokens(
+            DEX(dex).swapExactTokensForTokens(
                 _amount,
                 0,
                 path,
@@ -270,7 +279,7 @@ contract EasyDCA is Ownable {
                 dcaList[_dcaIndex].frequency;
             insertToHeap(_dcaIndex);
 
-            // Emit purchase
+            // Emit purchase event
             emit Purchase(
                 _currentAccount,
                 _currentStable,
@@ -286,16 +295,17 @@ contract EasyDCA is Ownable {
         }
     }
 
+    // CHAINLINK UPKEEP (AUTOMATION) METHODS
     function checkUpkeep(
         bytes calldata
     ) external view returns (bool upkeepNeeded, bytes memory) {
         upkeepNeeded =
-            (dcaHeap.length > 0) &&
-            (dcaList[dcaHeap[0]].isActive && dcaList[dcaHeap[0]].treshold < block.timestamp);
+            (dcaHeap.length > 1) &&
+            (dcaList[dcaHeap[1]].isActive && dcaList[dcaHeap[1]].treshold < block.timestamp);
     }
 
     function performUpkeep(bytes calldata) public {
-        if (dcaList[dcaHeap[0]].treshold < block.timestamp) {
+        if (dcaList[dcaHeap[1]].treshold < block.timestamp) {
             uint256 _dcaIndex = removeMinFromHeap();
 
             if (dcaList[_dcaIndex].isActive) {
@@ -304,7 +314,7 @@ contract EasyDCA is Ownable {
         }
     }
 
-    // Helper Methods
+    // HELPER METHODS
     function isIncludedInList(
         address[] memory _list,
         address _token
@@ -317,7 +327,7 @@ contract EasyDCA is Ownable {
         return false;
     }
 
-    // Manager Methods
+    // MANAGER METHODS
     function addToStableCoinsList(address _newCoin) public onlyOwner {
         require(
             !isIncludedInList(allowedStableCoins, _newCoin),
