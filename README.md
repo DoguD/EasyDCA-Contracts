@@ -3,7 +3,7 @@
 Decentralized protocol for users to create their own dollar-cost-averaging strategies.
 All strategies are executed automatically by [Chainlink Automation](https://automation.chain.link).
 
-Deployed Contract: [0xabb6b23d8C19beCd9BdaeD1cD75682c3aD9d836C](https://ftmscan.com/address/0xabb6b23d8C19beCd9BdaeD1cD75682c3aD9d836C)
+Deployed Contract: [0x45E4b5cA9976f9F0F5B119a87b992368d60dC8bb](https://ftmscan.com/address/0x45E4b5cA9976f9F0F5B119a87b992368d60dC8bb)
 
 Demo Website: https://easydca-frontend.vercel.app
 
