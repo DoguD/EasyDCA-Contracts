@@ -1,13 +1,7 @@
-# Sample Hardhat Project
+# EasyDCA
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+Decentralized protocol for users to create their own dollar-cost-averaging strategies. All strategies are executed automatically by [Chainlink Automation](https://automation.chain.link).
 
-Try running some of the following tasks:
-
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
-```
+Deployed Contract: <TODO>
+Demo Website: https://easydca-frontend.vercel.app
+Website Source Code: https://github.com/DoguD/EasyDCA-Website
