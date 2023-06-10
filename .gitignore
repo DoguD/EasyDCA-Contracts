@@ -11,3 +11,6 @@ artifacts
 
 # Environment
 .env
+
+#MacOs
+.DS_Store
