@@ -289,8 +289,7 @@ contract EasyDCA is Ownable {
                 block.timestamp
             );
         } catch {
-            // If purchase can't happen disable the DCA order and remove it from heap
-            removeMinFromHeap();
+            // If purchase can't happen disable the DCA order
             dcaList[_dcaIndex].isActive = false;
         }
     }
